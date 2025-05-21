@@ -20,7 +20,7 @@ from PyQt5.QtWidgets import (
 
 # Constants for Erome
 USER_AGENT = "Mozilla/5.0"
-HOST = "www.erome.com"
+EROME_HOST = "www.erome.com"
 CHUNK_SIZE = 1024
 
 # Load environment variables
@@ -38,7 +38,7 @@ reddit = praw.Reddit(
 class RedditDownloaderGUI(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Reddit + Erome Image Downloader")
+        self.setWindowTitle("Reddit + Erome + 4chan Image Downloader")
         self.setMinimumWidth(600)
         self.setup_ui()
 
@@ -47,7 +47,7 @@ class RedditDownloaderGUI(QWidget):
 
         search_layout = QHBoxLayout()
         self.search_type_combo = QComboBox()
-        self.search_type_combo.addItems(["Search by keyword", "Search by subreddit name", "Erome gallery URL"])
+        self.search_type_combo.addItems(["Search by keyword", "Search by subreddit name", "Erome gallery URL", "4chan thread URL"])
         self.keyword_input = QLineEdit()
         self.search_button = QPushButton("Search")
         self.search_button.clicked.connect(self.search_subreddits)
@@ -190,6 +190,59 @@ class RedditDownloaderGUI(QWidget):
         except Exception as e:
             self.log(f"❌ Erome download error: {e}")
 
+    def download_images(self):
+        selected = self.subreddit_list.currentItem()
+        if not selected:
+            QMessageBox.warning(self, "Input Error", "Please select a source from the list.")
+            return
+
+        text = selected.text().strip()
+        if "erome.com" in text:
+            asyncio.run(self.download_erome_gallery(text))
+            return
+        if "boards.4chan.org" in text:
+            asyncio.run(self.download_4chan_thread(text))
+            return
+
+        self.log("Subreddit downloading logic is not shown here.")
+
+    async def download_4chan_thread(self, url):
+        try:
+            board = re.search(r"boards\.4chan\.org/([^/]+)/thread/", url)
+            thread_id = re.search(r"thread/(\d+)", url)
+            if not board or not thread_id:
+                self.log("❌ Invalid 4chan thread URL format.")
+                return
+            board, thread_id = board.group(1), thread_id.group(1)
+            api_url = f"https://a.4cdn.org/{board}/thread/{thread_id}.json"
+            media_url_base = f"https://i.4cdn.org/{board}/"
+            save_path = Path("downloader") / f"4chan_{board}_{thread_id}"
+            save_path.mkdir(parents=True, exist_ok=True)
+
+            async with aiohttp.ClientSession() as session:
+                async with session.get(api_url) as resp:
+                    if resp.status != 200:
+                        self.log("❌ Failed to fetch thread data.")
+                        return
+                    data = await resp.json()
+                    images = [post for post in data.get("posts", []) if "tim" in post and "ext" in post]
+
+                    for i, post in enumerate(images):
+                        file_url = f"{media_url_base}{post['tim']}{post['ext']}"
+                        file_path = save_path / f"{post['tim']}{post['ext']}"
+                        async with session.get(file_url) as f:
+                            if f.status == 200:
+                                with open(file_path, "wb") as out:
+                                    out.write(await f.read())
+                                self.log(f"Saved: {file_path}")
+                            else:
+                                self.log(f"Failed to download: {file_url}")
+
+            self.log(f"✅ Downloaded {len(images)} images to {save_path}")
+
+        except Exception as e:
+            self.log(f"❌ 4chan download error: {e}")
+
     def search_subreddits(self):
         keyword = self.keyword_input.text().strip().lower()
         allow_sfw = self.sfw_checkbox.isChecked()
@@ -205,6 +258,11 @@ class RedditDownloaderGUI(QWidget):
         if "erome.com" in keyword or search_type == "Erome gallery URL":
             self.subreddit_list.addItem(keyword)
             self.log("Erome gallery ready for download.")
+            return
+
+        if "4chan.org" in keyword or search_type == "4chan thread URL":
+            self.subreddit_list.addItem(keyword)
+            self.log("4chan thread ready for download.")
             return
 
         try:
@@ -232,19 +290,6 @@ class RedditDownloaderGUI(QWidget):
         except Exception as e:
             self.log(f"Error searching subreddits: {e}")
 
-    def download_images(self):
-        selected = self.subreddit_list.currentItem()
-        if not selected:
-            QMessageBox.warning(self, "Input Error", "Please select a subreddit or Erome URL from the list.")
-            return
-
-        text = selected.text().strip()
-        if "erome.com" in text:
-            asyncio.run(self.download_erome_gallery(text))
-            return
-
-        self.log("Subreddit downloading logic is not shown here.")
-
 # --- Utility Functions ---
 def _clean_album_title(title: str, default_title="temp") -> str:
     illegal_chars = r'[\\/:*?"<>|]'
@@ -257,8 +302,8 @@ def _get_final_download_path(album_title: str) -> Path:
     return final_path
 
 async def dump(url: str, max_connections: int, skip_videos: bool, skip_images: bool):
-    if urlparse(url).hostname != HOST:
-        raise ValueError(f"Host must be {HOST}")
+    if urlparse(url).hostname != EROME_HOST:
+        raise ValueError(f"Host must be {EROME_HOST}")
     title, urls = await _collect_album_data(url, skip_videos, skip_images)
     download_path = _get_final_download_path(title)
     await _download(url, urls, max_connections, download_path)
@@ -306,4 +351,3 @@ if __name__ == '__main__':
     window = RedditDownloaderGUI()
     window.show()
     sys.exit(app.exec_())
-# Use this link to test https://www.erome.com/a/X9CLe8fX
