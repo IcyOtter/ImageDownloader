@@ -7,7 +7,7 @@ import shutil
 from dotenv import load_dotenv
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QVBoxLayout,
-    QHBoxLayout, QLineEdit, QTextEdit, QSpinBox, QMessageBox, QCheckBox, QListWidget
+    QHBoxLayout, QLineEdit, QTextEdit, QSpinBox, QMessageBox, QCheckBox, QListWidget, QComboBox
 )
 
 # Load environment variables
@@ -32,13 +32,14 @@ class RedditDownloaderGUI(QWidget):
     def setup_ui(self):
         layout = QVBoxLayout()
 
-        # Keyword input for subreddit search
+        # Search type and keyword input
         search_layout = QHBoxLayout()
-        self.keyword_label = QLabel("Search Keyword:")
+        self.search_type_combo = QComboBox()
+        self.search_type_combo.addItems(["Search by keyword", "Search by subreddit name"])
         self.keyword_input = QLineEdit()
         self.search_button = QPushButton("Search")
         self.search_button.clicked.connect(self.search_subreddits)
-        search_layout.addWidget(self.keyword_label)
+        search_layout.addWidget(self.search_type_combo)
         search_layout.addWidget(self.keyword_input)
         search_layout.addWidget(self.search_button)
 
@@ -103,21 +104,34 @@ class RedditDownloaderGUI(QWidget):
         keyword = self.keyword_input.text().strip().lower()
         allow_sfw = self.sfw_checkbox.isChecked()
         allow_nsfw = self.nsfw_checkbox.isChecked()
+        search_type = self.search_type_combo.currentText()
 
         if not keyword:
-            QMessageBox.warning(self, "Input Error", "Please enter a keyword to search.")
+            QMessageBox.warning(self, "Input Error", "Please enter a keyword or subreddit name to search.")
             return
 
         self.subreddit_list.clear()
         try:
             results = []
-            for subreddit in reddit.subreddits.search(keyword, limit=100):
-                if subreddit.subscribers is not None:
-                    if subreddit.over18 and not allow_nsfw:
-                        continue
-                    if not subreddit.over18 and not allow_sfw:
-                        continue
-                    results.append((subreddit.display_name, subreddit.title, subreddit.subscribers, subreddit.over18))
+            if search_type == "Search by keyword":
+                for subreddit in reddit.subreddits.search(keyword, limit=100):
+                    if subreddit.subscribers is not None:
+                        if subreddit.over18 and not allow_nsfw:
+                            continue
+                        if not subreddit.over18 and not allow_sfw:
+                            continue
+                        results.append((subreddit.display_name, subreddit.title, subreddit.subscribers, subreddit.over18))
+            else:
+                try:
+                    subreddit = reddit.subreddit(keyword)
+                    if subreddit.subscribers is not None:
+                        if subreddit.over18 and not allow_nsfw:
+                            return
+                        if not subreddit.over18 and not allow_sfw:
+                            return
+                        results.append((subreddit.display_name, subreddit.title, subreddit.subscribers, subreddit.over18))
+                except Exception as e:
+                    self.log(f"Subreddit not found or inaccessible: {e}")
 
             results.sort(key=lambda x: x[2], reverse=True)
 
