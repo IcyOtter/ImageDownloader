@@ -34,7 +34,29 @@ def load_known_nsfw(filepath="known_nsfw.txt"):
             for line in file
             if line.strip() and not line.startswith("#")
         ))
-    
+
+# --- Clear master folder ---
+def clear_master_folder(master_folder="communitydownloader"):
+    if not os.path.exists(master_folder):
+        print(f"ℹ️ Master folder '{master_folder}' does not exist.")
+        return
+
+    confirm = input(f"⚠️ This will permanently delete all contents inside '{master_folder}'. Continue? [y/N]: ").strip().lower()
+    if confirm != "y":
+        print("❌ Deletion cancelled.")
+        return
+
+    try:
+        for item in os.listdir(master_folder):
+            path = os.path.join(master_folder, item)
+            if os.path.isfile(path) or os.path.islink(path):
+                os.unlink(path)
+            elif os.path.isdir(path):
+                shutil.rmtree(path)
+        print(f"✅ All contents deleted from '{master_folder}' (folder itself kept).")
+    except Exception as e:
+        print(f"❌ Failed to delete contents: {e}")
+
 # --- Downloader ---
 def download_images_from_subreddit(subreddit_name, limit=20, master_folder="communitydownloader", cache_folder="cache"):
     subreddit_name = subreddit_name.replace("/r/", "").replace("r/", "")
@@ -225,6 +247,7 @@ while True:
         print("2. Download images from a subreddit by name")
         print("3. Clear a subreddit's image cache")
         print("4. Backup master download folder")
+        print("5. Clear master folder")
         print("0. Exit\n")
 
         main_choice = input("Choose an action [0–4]: ").strip()
@@ -260,6 +283,9 @@ while True:
 
         elif main_choice == "4":
             copy_master_folder()
+
+        elif main_choice == "5":
+            clear_master_folder()
 
         elif main_choice == "0":
             print("Exiting.")
