@@ -7,7 +7,7 @@ import shutil
 from dotenv import load_dotenv
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QVBoxLayout,
-    QHBoxLayout, QLineEdit, QTextEdit, QSpinBox, QMessageBox, QCheckBox, QListWidget, QComboBox
+    QHBoxLayout, QLineEdit, QTextEdit, QSpinBox, QMessageBox, QCheckBox, QListWidget, QComboBox, QFileDialog
 )
 
 # Load environment variables
@@ -77,9 +77,12 @@ class RedditDownloaderGUI(QWidget):
         self.clear_selected_cache_button.clicked.connect(self.clear_selected_cache)
         self.clear_downloads_button = QPushButton("Clear Downloads")
         self.clear_downloads_button.clicked.connect(self.clear_master_folder)
+        self.copy_downloads_button = QPushButton("Copy Master Folder")
+        self.copy_downloads_button.clicked.connect(self.copy_master_folder)
         manage_layout.addWidget(self.clear_cache_button)
         manage_layout.addWidget(self.clear_selected_cache_button)
         manage_layout.addWidget(self.clear_downloads_button)
+        manage_layout.addWidget(self.copy_downloads_button)
 
         # Log output area
         self.log_output = QTextEdit()
@@ -135,6 +138,26 @@ class RedditDownloaderGUI(QWidget):
 
         except Exception as e:
             self.log(f"Error searching subreddits: {e}")
+
+    def copy_master_folder(self):
+        src = "communitydownloader"
+        if not os.path.exists(src):
+            self.log("Master folder does not exist.")
+            return
+
+        dest = QFileDialog.getExistingDirectory(self, "Select Destination Folder")
+        if not dest:
+            self.log("Copy cancelled.")
+            return
+
+        dest_path = os.path.join(dest, os.path.basename(src))
+        try:
+            if os.path.exists(dest_path):
+                shutil.rmtree(dest_path)
+            shutil.copytree(src, dest_path)
+            self.log(f"✅ Master folder copied to: {dest_path}")
+        except Exception as e:
+            self.log(f"❌ Failed to copy master folder: {e}")
 
     def download_images(self):
         selected = self.subreddit_list.currentItem()
