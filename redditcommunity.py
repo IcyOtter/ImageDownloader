@@ -130,6 +130,26 @@ def clear_subreddit_cache(subreddit_name, cache_folder="cache"):
     else:
         print(f"No cache found for r/{subreddit_name}.")
 
+# --- Clear all subreddit caches ---
+def clear_all_subreddit_caches(cache_folder="cache"):
+    if not os.path.exists(cache_folder):
+        print(f"Cache folder '{cache_folder}' does not exist.")
+        return
+
+    confirm = input(f"⚠️ This will permanently delete all cache files in '{cache_folder}'. Continue? [y/N]: ").strip().lower()
+    if confirm != "y":
+        print("❌ Deletion cancelled.")
+        return
+
+    try:
+        for item in os.listdir(cache_folder):
+            path = os.path.join(cache_folder, item)
+            if os.path.isfile(path):
+                os.unlink(path)
+        print(f"✅ All cache files deleted from '{cache_folder}'.")
+    except Exception as e:
+        print(f"❌ Failed to delete cache files: {e}")
+
 # --- Copy master folder to desired location ---
 def copy_master_folder(master_folder="communitydownloader"):
     if not os.path.exists(master_folder):
@@ -237,7 +257,7 @@ def update_nsfw_list(url="https://raw.githubusercontent.com/IcyOtter/redditNSFW/
     except Exception as e:
         print(f"Failed to update NSFW list: {e}")
 
-# --- Run the script ---
+# --- Main part of script ---
 while True:
     if __name__ == "__main__":
         update_nsfw_list()  # Update the known NSFW list at startup
@@ -245,7 +265,7 @@ while True:
         print("\nMain options:")
         print("1. Search subreddits and optionally download images")
         print("2. Download images from a subreddit by name")
-        print("3. Clear a subreddit's image cache")
+        print("3. Cache management")
         print("4. Backup master download folder")
         print("5. Clear master folder")
         print("0. Exit\n")
@@ -278,8 +298,15 @@ while True:
                 print("Invalid number. Skipping image download.")
 
         elif main_choice == "3":
-            sub = input("Enter the subreddit name to clear its cache (no /r/): ").strip()
-            clear_subreddit_cache(sub)
+            print("\nCache management options:")
+            print("1. Clear all subreddit caches")
+            print("2. Clear cache for a specific subreddit\n")
+            choice = input("Choose an action [1/2]: ").strip()
+            if choice == "1":
+                clear_all_subreddit_caches()
+            elif choice == "2":
+                sub = input("Enter the subreddit name to clear its cache (no /r/): ").strip()
+                clear_subreddit_cache(sub)
 
         elif main_choice == "4":
             copy_master_folder()
