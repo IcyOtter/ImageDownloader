@@ -1,13 +1,4 @@
-import sys
-import os
-import re
-import json
-import requests
-import praw
-import shutil
-import asyncio
-import aiohttp
-import aiofiles
+import sys, os, re, requests, praw, shutil, asyncio, aiohttp, aiofiles, webbrowser
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 from pathlib import Path
@@ -15,7 +6,8 @@ from tqdm.asyncio import tqdm_asyncio, tqdm
 from dotenv import load_dotenv
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QVBoxLayout,
-    QHBoxLayout, QLineEdit, QTextEdit, QSpinBox, QMessageBox, QCheckBox, QListWidget, QComboBox, QFileDialog
+    QHBoxLayout, QLineEdit, QTextEdit, QSpinBox, QMessageBox, QCheckBox, QListWidget, QComboBox, QFileDialog,
+    QMenuBar, QMenu, QAction, QMainWindow
 )
 
 # Constants for Erome
@@ -35,17 +27,41 @@ reddit = praw.Reddit(
     password=os.getenv("REDDIT_PASSWORD")
 )
 
-class RedditDownloaderGUI(QWidget):
+
+class RedditDownloaderGUI(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Reddit + Erome Image Downloader")
-        self.setMinimumWidth(600)
+        self.setWindowTitle("Image Downloader")
+        self.setMinimumWidth(800)
         self.master_folder = "downloader"
+        self.setup_menu()
         self.setup_ui()
 
+    def setup_menu(self):
+        menu_bar = self.menuBar()
+        links_menu = QMenu("Links", self)
+
+        # Define your links here
+        websites = {
+            "Reddit": "https://www.reddit.com",
+            "Erome": "https://www.erome.com",
+            "4chan": "https://boards.4chan.org",
+        }
+
+        for name, url in websites.items():
+            action = QAction(name, self)
+            action.triggered.connect(lambda checked, link=url: webbrowser.open(link))
+            links_menu.addAction(action)
+
+        menu_bar.addMenu(links_menu)
+
     def setup_ui(self):
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)  # ✅ Attach central widget to QMainWindow
+
         layout = QVBoxLayout()
 
+        # UI setup as before
         search_layout = QHBoxLayout()
         self.search_type_combo = QComboBox()
         self.search_type_combo.addItems(["Search by keyword", "Search by subreddit name", "Erome gallery URL", "4chan thread URL"])
@@ -107,8 +123,8 @@ class RedditDownloaderGUI(QWidget):
         layout.addWidget(QLabel("Log Output:"))
         layout.addWidget(self.log_output)
 
-        self.setLayout(layout)
-
+        central_widget.setLayout(layout)  # ✅ Set layout on central widget
+    
     def change_master_folder(self):
         target_dir = QFileDialog.getExistingDirectory(self, "Select New Master Folder Location")
         if target_dir:
