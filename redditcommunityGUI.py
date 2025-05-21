@@ -72,9 +72,12 @@ class RedditDownloaderGUI(QWidget):
         manage_layout = QHBoxLayout()
         self.clear_cache_button = QPushButton("Clear All Caches")
         self.clear_cache_button.clicked.connect(self.clear_all_caches)
+        self.clear_selected_cache_button = QPushButton("Clear Selected Cache")
+        self.clear_selected_cache_button.clicked.connect(self.clear_selected_cache)
         self.clear_downloads_button = QPushButton("Clear Downloads")
         self.clear_downloads_button.clicked.connect(self.clear_master_folder)
         manage_layout.addWidget(self.clear_cache_button)
+        manage_layout.addWidget(self.clear_selected_cache_button)
         manage_layout.addWidget(self.clear_downloads_button)
 
         # Log output area
@@ -213,6 +216,25 @@ class RedditDownloaderGUI(QWidget):
         except Exception as e:
             self.log(f"❌ Failed to clear caches: {e}")
 
+    def clear_selected_cache(self):
+        selected = self.subreddit_list.currentItem()
+        if not selected:
+            QMessageBox.warning(self, "Input Error", "Please select a subreddit to clear its cache.")
+            return
+
+        subreddit_name = selected.text().split()[1].replace("r/", "")
+        safe_name = re.sub(r'[^\w\-]', '_', subreddit_name.lower())
+        cache_file = os.path.join("cache", f"r_{safe_name}.txt")
+
+        try:
+            if os.path.exists(cache_file):
+                os.remove(cache_file)
+                self.log(f"✅ Cache cleared for r/{subreddit_name}.")
+            else:
+                self.log(f"ℹ️ No cache file found for r/{subreddit_name}.")
+        except Exception as e:
+            self.log(f"❌ Failed to clear cache for r/{subreddit_name}: {e}")
+
     def clear_master_folder(self):
         master_folder = "communitydownloader"
         if not os.path.exists(master_folder):
@@ -235,5 +257,3 @@ if __name__ == '__main__':
     window = RedditDownloaderGUI()
     window.show()
     sys.exit(app.exec_())
-
-
