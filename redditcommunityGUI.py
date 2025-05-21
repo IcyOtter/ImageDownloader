@@ -113,25 +113,16 @@ class RedditDownloaderGUI(QWidget):
         self.subreddit_list.clear()
         try:
             results = []
-            if search_type == "Search by keyword":
+            if search_type == "Search by keyword" or search_type == "Search by subreddit name":
                 for subreddit in reddit.subreddits.search(keyword, limit=100):
                     if subreddit.subscribers is not None:
                         if subreddit.over18 and not allow_nsfw:
                             continue
                         if not subreddit.over18 and not allow_sfw:
                             continue
+                        if search_type == "Search by subreddit name" and keyword not in subreddit.display_name.lower():
+                            continue
                         results.append((subreddit.display_name, subreddit.title, subreddit.subscribers, subreddit.over18))
-            else:
-                try:
-                    subreddit = reddit.subreddit(keyword)
-                    if subreddit.subscribers is not None:
-                        if subreddit.over18 and not allow_nsfw:
-                            return
-                        if not subreddit.over18 and not allow_sfw:
-                            return
-                        results.append((subreddit.display_name, subreddit.title, subreddit.subscribers, subreddit.over18))
-                except Exception as e:
-                    self.log(f"Subreddit not found or inaccessible: {e}")
 
             results.sort(key=lambda x: x[2], reverse=True)
 
