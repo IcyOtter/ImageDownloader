@@ -64,13 +64,18 @@ class RedditDownloaderGUI(QMainWindow):
         # UI setup
         search_layout = QHBoxLayout()
         self.search_type_combo = QComboBox()
-        self.search_type_combo.addItems(["Search by keyword", "Search by subreddit name", "Erome gallery URL", "4chan thread URL"])
+        self.search_type_combo.addItems(["Search by keyword", "Search by subreddit name"])
         self.keyword_input = QLineEdit()
         self.search_button = QPushButton("Search")
         self.search_button.clicked.connect(self.search_subreddits)
         search_layout.addWidget(self.search_type_combo)
         search_layout.addWidget(self.keyword_input)
         search_layout.addWidget(self.search_button)
+
+        # Website detection
+        self.detected_type_label = QLabel("Detected Type: None")
+        layout.addWidget(self.detected_type_label)
+
 
         self.subreddit_list = QListWidget()
 
@@ -82,7 +87,11 @@ class RedditDownloaderGUI(QMainWindow):
         count_layout.addWidget(self.count_label)
         count_layout.addWidget(self.count_input)
 
+        # Filtering GUI
+        self.filter_container = QWidget()
         filter_layout = QHBoxLayout()
+        self.filter_container.setLayout(filter_layout)
+
         self.sfw_checkbox = QCheckBox("SFW")
         self.sfw_checkbox.setChecked(True)
         self.nsfw_checkbox = QCheckBox("NSFW")
@@ -91,6 +100,10 @@ class RedditDownloaderGUI(QMainWindow):
         filter_layout.addWidget(self.sfw_checkbox)
         filter_layout.addWidget(self.nsfw_checkbox)
 
+        layout.addWidget(self.filter_container)
+        self.filter_container.hide()  # Hide the filter container initially
+
+        # Download button GUI
         self.download_button = QPushButton("Download Images")
         self.download_button.clicked.connect(self.download_images)
 
@@ -340,9 +353,11 @@ class RedditDownloaderGUI(QMainWindow):
 
     def search_subreddits(self):
         keyword = self.keyword_input.text().strip().lower()
+        self.detected_type_label.setText("Detected Type: None")
         allow_sfw = self.sfw_checkbox.isChecked()
         allow_nsfw = self.nsfw_checkbox.isChecked()
         search_type = self.search_type_combo.currentText()
+        self.filter_container.hide()
 
         self.subreddit_list.clear()
 
@@ -350,19 +365,26 @@ class RedditDownloaderGUI(QMainWindow):
             QMessageBox.warning(self, "Input Error", "Please enter a keyword or subreddit name to search.")
             return
 
-        if "erome.com" in keyword or search_type == "Erome gallery URL":
+        # Auto-detect what website the user is trying to download from
+        if "erome.com" in keyword:
+            self.subreddit_list.clear()
             self.subreddit_list.addItem(keyword)
+            self.detected_type_label.setText("Detected Type: Erome Gallery")
             self.log("Erome gallery ready for download.")
             return
 
-        if "4chan.org" in keyword or search_type == "4chan thread URL":
+        elif "4chan.org" in keyword:
+            self.subreddit_list.clear()
             self.subreddit_list.addItem(keyword)
+            self.detected_type_label.setText("Detected Type: 4chan Thread")
             self.log("4chan thread ready for download.")
             return
+
 
         try:
             results = []
             if search_type in ("Search by keyword", "Search by subreddit name"):
+                search_type = self.search_type_combo.currentText()
                 for subreddit in reddit.subreddits.search(keyword, limit=100):
                     if subreddit.subscribers is not None:
                         if subreddit.over18 and not allow_nsfw:
@@ -372,6 +394,8 @@ class RedditDownloaderGUI(QMainWindow):
                         if search_type == "Search by subreddit name" and keyword not in subreddit.display_name.lower():
                             continue
                         results.append((subreddit.display_name, subreddit.title, subreddit.subscribers, subreddit.over18))
+                        self.filter_container.show()
+                        self.detected_type_label.setText("Detected Type: Reddit Subreddit Search")
 
             results.sort(key=lambda x: x[2], reverse=True)
 
