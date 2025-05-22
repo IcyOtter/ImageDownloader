@@ -109,10 +109,11 @@ class Download4chanThread(QThread):
     progress_updated = pyqtSignal(int, int)
     log_message = pyqtSignal(str)
 
-    def __init__(self, url, master_folder):
+    def __init__(self, url, master_folder, log_link_callback=None):
         super().__init__()
         self.url = url
         self.master_folder = master_folder
+        self.log_link_callback = log_link_callback
 
     def run(self):
         asyncio.run(self.download_4chan_thread())
@@ -148,6 +149,8 @@ class Download4chanThread(QThread):
                                 with open(file_path, "wb") as out:
                                     out.write(await f.read())
                                 self.log_message.emit(f"Saved: {file_path}")
+                                if self.log_link_callback:
+                                    self.log_link_callback("4chan", file_url)
                             else:
                                 self.log_message.emit(f"Failed to download: {file_url}")
 
@@ -323,6 +326,11 @@ class RedditDownloaderGUI(QMainWindow):
     # --- Logging ---
     def log_downloaded_link(self, source: str, url: str):
         try:
+            if os.path.exists(self.link_log_file):
+                with open(self.link_log_file, "r") as f:
+                    if any(url in line for line in f):
+                        return  # URL already logged
+
             with open(self.link_log_file, "a") as f:
                 f.write(f"[{source.upper()}] {url}\n")
         except Exception as e:
@@ -345,33 +353,6 @@ class RedditDownloaderGUI(QMainWindow):
             log_window.exec_()
         except Exception as e:
             self.log(f"❌ Failed to open link log: {e}")
-
-        def show_log_window(self):
-            try:
-                with open("link_log.txt", "r") as f:
-                    log_contents = f.read()
-            except FileNotFoundError:
-                log_contents = "No logs found."
-
-            log_window = QWidget()
-            log_window.setWindowTitle("Download Log")
-            log_window.setMinimumSize(600, 400)
-
-            layout = QVBoxLayout()
-            log_output = QTextEdit()
-            log_output.setReadOnly(True)
-            log_output.setText(log_contents)
-
-            close_button = QPushButton("Close")
-            close_button.clicked.connect(log_window.close)
-
-            layout.addWidget(log_output)
-            layout.addWidget(close_button)
-
-            log_window.setLayout(layout)
-            log_window.show()
-            # Keep reference so it doesn't get garbage collected
-            self.log_window = log_window
 
     def log(self, message):
         self.log_output.append(message)
@@ -498,6 +479,8 @@ class RedditDownloaderGUI(QMainWindow):
             self.download_thread.progress_updated.connect(self.update_progress)
             self.download_thread.log_message.connect(self.log)
             self.download_thread.start()
+
+            self.log_downloaded_link("4chan", text)
             return
 
         try:
