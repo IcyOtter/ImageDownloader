@@ -41,7 +41,7 @@ class RedditDownloaderGUI(QMainWindow):
         menu_bar = self.menuBar()
         links_menu = QMenu("Links", self)
 
-        # Define your links here
+        # Place links to websites here
         websites = {
             "Reddit": "https://www.reddit.com",
             "Erome": "https://www.erome.com",
@@ -57,11 +57,11 @@ class RedditDownloaderGUI(QMainWindow):
 
     def setup_ui(self):
         central_widget = QWidget()
-        self.setCentralWidget(central_widget)  # ✅ Attach central widget to QMainWindow
+        self.setCentralWidget(central_widget)  # Attach central widget to QMainWindow
 
         layout = QVBoxLayout()
 
-        # UI setup as before
+        # UI setup
         search_layout = QHBoxLayout()
         self.search_type_combo = QComboBox()
         self.search_type_combo.addItems(["Search by keyword", "Search by subreddit name", "Erome gallery URL", "4chan thread URL"])
@@ -123,15 +123,15 @@ class RedditDownloaderGUI(QMainWindow):
         layout.addWidget(QLabel("Log Output:"))
         layout.addWidget(self.log_output)
 
-        central_widget.setLayout(layout)  # ✅ Set layout on central widget
+        central_widget.setLayout(layout)  # Set layout on central widget
     
     def change_master_folder(self):
         target_dir = QFileDialog.getExistingDirectory(self, "Select New Master Folder Location")
         if target_dir:
             self.master_folder = target_dir
-            self.log(f"✅ Master folder location changed to: {self.master_folder}")
+            self.log(f"Master folder location changed to: {self.master_folder}")
         else:
-            self.log("⚠️ Master folder location not changed.")
+            self.log("Master folder location not changed.")
 
     def log(self, message):
         self.log_output.append(message)
@@ -146,9 +146,9 @@ class RedditDownloaderGUI(QMainWindow):
                 path = os.path.join(cache_folder, item)
                 if os.path.isfile(path):
                     os.unlink(path)
-            self.log("✅ All cache files deleted.")
+            self.log("All cache files deleted.")
         except Exception as e:
-            self.log(f"❌ Failed to clear caches: {e}")
+            self.log(f"Failed to clear caches: {e}")
 
     def clear_selected_cache(self):
         selected = self.subreddit_list.currentItem()
@@ -159,7 +159,7 @@ class RedditDownloaderGUI(QMainWindow):
         try:
             subreddit_name = selected.text().split()[1].replace("r/", "")
         except IndexError:
-            self.log("❌ Could not determine subreddit name from selection.")
+            self.log("Could not determine subreddit name from selection.")
             return
 
         safe_name = re.sub(r'[^\w\-]', '_', subreddit_name.lower())
@@ -168,11 +168,11 @@ class RedditDownloaderGUI(QMainWindow):
         try:
             if os.path.exists(cache_file):
                 os.remove(cache_file)
-                self.log(f"✅ Cache cleared for r/{subreddit_name}.")
+                self.log(f"Cache cleared for r/{subreddit_name}.")
             else:
-                self.log(f"ℹ️ No cache file found for r/{subreddit_name}.")
+                self.log(f"No cache file found for r/{subreddit_name}.")
         except Exception as e:
-            self.log(f"❌ Failed to clear cache for r/{subreddit_name}: {e}")
+            self.log(f"Failed to clear cache for r/{subreddit_name}: {e}")
 
     def clear_master_folder(self):
         if not os.path.exists(self.master_folder):
@@ -186,9 +186,9 @@ class RedditDownloaderGUI(QMainWindow):
                     os.unlink(path)
                 elif os.path.isdir(path):
                     shutil.rmtree(path)
-            self.log("✅ All download contents deleted.")
+            self.log("All download contents deleted.")
         except Exception as e:
-            self.log(f"❌ Failed to clear downloads: {e}")
+            self.log(f"Failed to clear downloads: {e}")
 
     def copy_master_folder(self):
         if not os.path.exists(self.master_folder):
@@ -205,16 +205,16 @@ class RedditDownloaderGUI(QMainWindow):
             if os.path.exists(dest_path):
                 shutil.rmtree(dest_path)
             shutil.copytree(self.master_folder, dest_path)
-            self.log(f"✅ Master folder copied to {dest_path}")
+            self.log(f"Master folder copied to {dest_path}")
         except Exception as e:
-            self.log(f"❌ Failed to copy master folder: {e}")
+            self.log(f"Failed to copy master folder: {e}")
 
     async def download_erome_gallery(self, url):
         try:
             await self.dump(url=url, max_connections=5, skip_videos=False, skip_images=False)
-            self.log("✅ Erome gallery downloaded.")
+            self.log("Erome gallery downloaded.")
         except Exception as e:
-            self.log(f"❌ Erome download error: {e}")
+            self.log(f"Erome download error: {e}")
 
 
     def download_images(self):
@@ -233,11 +233,11 @@ class RedditDownloaderGUI(QMainWindow):
             asyncio.run(self.download_4chan_thread(text))
             return
 
-        # Now handle Reddit subreddit case
+
         try:
             subreddit_name = text.split()[1].replace("r/", "")
         except IndexError:
-            self.log("❌ Could not determine subreddit name from selection.")
+            self.log("Could not determine subreddit name from selection.")
             return
 
         limit = self.count_input.value()
@@ -250,7 +250,7 @@ class RedditDownloaderGUI(QMainWindow):
 
             subreddit_is_nsfw = subreddit.over18
             if (subreddit_is_nsfw and not allow_nsfw) or (not subreddit_is_nsfw and not allow_sfw):
-                self.log("❌ Subreddit does not match selected filter (SFW/NSFW). Skipping download.")
+                self.log("Subreddit does not match selected filter (SFW/NSFW). Skipping download.")
                 return
 
             cache_folder = "cache"
@@ -299,14 +299,14 @@ class RedditDownloaderGUI(QMainWindow):
                 self.log(f"\n{count} new images downloaded to '{os.path.abspath(download_folder)}'")
 
         except Exception as e:
-            self.log(f"❌ Error: {e}")
+            self.log(f"Error: {e}")
 
     async def download_4chan_thread(self, url):
         try:
             board = re.search(r"boards\.4chan\.org/([^/]+)/thread/", url)
             thread_id = re.search(r"thread/(\d+)", url)
             if not board or not thread_id:
-                self.log("❌ Invalid 4chan thread URL format.")
+                self.log("Invalid 4chan thread URL format.")
                 return
             board, thread_id = board.group(1), thread_id.group(1)
             api_url = f"https://a.4cdn.org/{board}/thread/{thread_id}.json"
@@ -317,7 +317,7 @@ class RedditDownloaderGUI(QMainWindow):
             async with aiohttp.ClientSession() as session:
                 async with session.get(api_url) as resp:
                     if resp.status != 200:
-                        self.log("❌ Failed to fetch thread data.")
+                        self.log("Failed to fetch thread data.")
                         return
                     data = await resp.json()
                     images = [post for post in data.get("posts", []) if "tim" in post and "ext" in post]
@@ -333,10 +333,10 @@ class RedditDownloaderGUI(QMainWindow):
                             else:
                                 self.log(f"Failed to download: {file_url}")
 
-            self.log(f"✅ Downloaded {len(images)} images to {save_path}")
+            self.log(f"Downloaded {len(images)} images to {save_path}")
 
         except Exception as e:
-            self.log(f"❌ 4chan download error: {e}")
+            self.log(f"4chan download error: {e}")
 
     def search_subreddits(self):
         keyword = self.keyword_input.text().strip().lower()
