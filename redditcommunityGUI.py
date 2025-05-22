@@ -79,13 +79,19 @@ class RedditDownloaderGUI(QMainWindow):
 
         self.subreddit_list = QListWidget()
 
+        # Number of images GUI
+        self.count_container = QWidget()
         count_layout = QHBoxLayout()
-        self.count_label = QLabel("Number of images:")
-        self.count_input = QSpinBox()
-        self.count_input.setRange(1, 100)
-        self.count_input.setValue(5)
+        self.count_container.setLayout(count_layout)
+
+        self.count_label = QLabel("Number of Images:")
+        self.count_input = QComboBox()
+        self.count_input.addItems(["5", "10", "20", "50", "100", "200", "All"])
         count_layout.addWidget(self.count_label)
         count_layout.addWidget(self.count_input)
+
+        layout.addWidget(self.count_container)
+        self.count_container.hide()
 
         # Filtering GUI
         self.filter_container = QWidget()
@@ -114,7 +120,7 @@ class RedditDownloaderGUI(QMainWindow):
         self.clear_selected_cache_button.clicked.connect(self.clear_selected_cache)
         self.clear_downloads_button = QPushButton("Clear Downloads")
         self.clear_downloads_button.clicked.connect(self.clear_master_folder)
-        self.copy_downloads_button = QPushButton("Copy Master Folder")
+        self.copy_downloads_button = QPushButton("Backup Master Folder")
         self.copy_downloads_button.clicked.connect(self.copy_master_folder)
         self.change_location_button = QPushButton("Change Download Location")
         self.change_location_button.clicked.connect(self.change_master_folder)
@@ -130,7 +136,6 @@ class RedditDownloaderGUI(QMainWindow):
         layout.addLayout(search_layout)
         layout.addWidget(self.subreddit_list)
         layout.addLayout(count_layout)
-        layout.addLayout(filter_layout)
         layout.addWidget(self.download_button)
         layout.addLayout(manage_layout)
         layout.addWidget(QLabel("Log Output:"))
@@ -253,7 +258,8 @@ class RedditDownloaderGUI(QMainWindow):
             self.log("Could not determine subreddit name from selection.")
             return
 
-        limit = self.count_input.value()
+        selected_limit = self.count_input.currentText()
+        limit = None if selected_limit == "All" else int(selected_limit)
         allow_sfw = self.sfw_checkbox.isChecked()
         allow_nsfw = self.nsfw_checkbox.isChecked()
 
@@ -284,7 +290,7 @@ class RedditDownloaderGUI(QMainWindow):
 
             count = 0
             new_urls = []
-            for post in subreddit.hot(limit=100):
+            for post in subreddit.hot(limit=1000):
                 url = post.url.strip()
                 if url.lower().endswith((".jpg", ".jpeg", ".png", ".gif")) and url not in cached_urls:
                     try:
@@ -296,7 +302,7 @@ class RedditDownloaderGUI(QMainWindow):
                         self.log(f"Saved: {filename}")
                         count += 1
                         new_urls.append(url)
-                        if count >= limit:
+                        if limit and count >= limit:
                             break
                     except Exception as e:
                         self.log(f"Failed to download {url}: {e}")
@@ -358,6 +364,7 @@ class RedditDownloaderGUI(QMainWindow):
         allow_nsfw = self.nsfw_checkbox.isChecked()
         search_type = self.search_type_combo.currentText()
         self.filter_container.hide()
+        self.count_container.show()
 
         self.subreddit_list.clear()
 
@@ -370,6 +377,7 @@ class RedditDownloaderGUI(QMainWindow):
             self.subreddit_list.clear()
             self.subreddit_list.addItem(keyword)
             self.detected_type_label.setText("Detected Type: Erome Gallery")
+            self.count_container.hide()
             self.log("Erome gallery ready for download.")
             return
 
@@ -377,6 +385,7 @@ class RedditDownloaderGUI(QMainWindow):
             self.subreddit_list.clear()
             self.subreddit_list.addItem(keyword)
             self.detected_type_label.setText("Detected Type: 4chan Thread")
+            self.count_container.hide()
             self.log("4chan thread ready for download.")
             return
 
