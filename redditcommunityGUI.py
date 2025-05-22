@@ -10,16 +10,14 @@ from utils import collect_album_data, download_album_files
 from gui_setup import setup_gui, setup_menu
 from config import get_reddit_client
 
-# Initialize Reddit client
-reddit = get_reddit_client()
-
 class RedditDownloaderGUI(QMainWindow):
-    def __init__(self):
+    def __init__(self, reddit_client):
         super().__init__()
         self.setWindowTitle("Image Downloader")
         self.setMinimumWidth(800)
         self.master_folder = "downloader"
         self.link_log_file = "downloaded_links.log"
+        self.reddit = reddit_client
 
         # Setup GUI and Menu. Found in gui_setup.py
         setup_gui(self)
@@ -291,7 +289,12 @@ class RedditDownloaderGUI(QMainWindow):
 
 
 if __name__ == '__main__':
+    from PyQt5.QtWidgets import QApplication
+    from config import get_reddit_client
+
     app = QApplication(sys.argv)
-    window = RedditDownloaderGUI()
+    reddit = get_reddit_client()
+
+    window = RedditDownloaderGUI(reddit)  # ← Pass it here
     window.show()
     sys.exit(app.exec_())
