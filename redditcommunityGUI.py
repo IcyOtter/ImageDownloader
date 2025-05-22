@@ -40,7 +40,10 @@ class RedditDownloaderGUI(QMainWindow):
 
     def setup_menu(self):
         menu_bar = self.menuBar()
+        # Links menu
         links_menu = QMenu("Links", self)
+        # Log menu
+        log_menu = QMenu("Log", self)
 
         # Place links to websites here
         websites = {
@@ -55,6 +58,12 @@ class RedditDownloaderGUI(QMainWindow):
             links_menu.addAction(action)
 
         menu_bar.addMenu(links_menu)
+
+        # Log menu actions
+        view_log_action = QAction("View Downloaded Log", self)
+        view_log_action.triggered.connect(self.view_link_log)
+        log_menu.addAction(view_log_action)
+        menu_bar.addMenu(log_menu)
 
     def setup_ui(self):
         central_widget = QWidget()
@@ -126,14 +135,11 @@ class RedditDownloaderGUI(QMainWindow):
         self.copy_downloads_button.clicked.connect(self.copy_master_folder)
         self.change_location_button = QPushButton("Change Download Location")
         self.change_location_button.clicked.connect(self.change_master_folder)
-        self.view_log_button = QPushButton("View Downloaded Links")
-        self.view_log_button.clicked.connect(self.view_link_log)
         manage_layout.addWidget(self.clear_cache_button)
         manage_layout.addWidget(self.clear_selected_cache_button)
         manage_layout.addWidget(self.clear_downloads_button)
         manage_layout.addWidget(self.copy_downloads_button)
         manage_layout.addWidget(self.change_location_button)
-        manage_layout.addWidget(self.view_log_button)
 
         self.log_output = QTextEdit()
         self.log_output.setReadOnly(True)
@@ -180,6 +186,32 @@ class RedditDownloaderGUI(QMainWindow):
         except Exception as e:
             self.log(f"❌ Failed to open link log: {e}")
 
+        def show_log_window(self):
+            try:
+                with open("link_log.txt", "r") as f:
+                    log_contents = f.read()
+            except FileNotFoundError:
+                log_contents = "No logs found."
+
+            log_window = QWidget()
+            log_window.setWindowTitle("Download Log")
+            log_window.setMinimumSize(600, 400)
+
+            layout = QVBoxLayout()
+            log_output = QTextEdit()
+            log_output.setReadOnly(True)
+            log_output.setText(log_contents)
+
+            close_button = QPushButton("Close")
+            close_button.clicked.connect(log_window.close)
+
+            layout.addWidget(log_output)
+            layout.addWidget(close_button)
+
+            log_window.setLayout(layout)
+            log_window.show()
+            # Keep reference so it doesn't get garbage collected
+            self.log_window = log_window
 
     def log(self, message):
         self.log_output.append(message)
