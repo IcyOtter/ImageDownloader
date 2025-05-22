@@ -7,6 +7,8 @@ from PyQt5.QtWidgets import (
 )
 from download_threads import Download4chanThread, DownloadEromeThread, DownloaderThread
 from utils import collect_album_data, download_album_files
+from gui_setup import setup_gui, setup_menu
+
 # Load environment variables
 load_dotenv()
 
@@ -25,129 +27,22 @@ class RedditDownloaderGUI(QMainWindow):
         self.setWindowTitle("Image Downloader")
         self.setMinimumWidth(800)
         self.master_folder = "downloader"
-        self.setup_menu()
-        self.setup_ui()
         self.link_log_file = "downloaded_links.log"
 
-    def setup_menu(self):
-        menu_bar = self.menuBar()
-        # Links menu
-        links_menu = QMenu("Links", self)
-        # Log menu
-        log_menu = QMenu("Log", self)
+        # Setup GUI and Menu. Found in gui_setup.py
+        setup_gui(self)
+        setup_menu(self)  
+        self.connect_signals()
 
-        # Place links to websites here
-        websites = {
-            "Reddit": "https://www.reddit.com",
-            "Erome": "https://www.erome.com",
-            "4chan": "https://boards.4chan.org",
-        }
-
-        for name, url in websites.items():
-            action = QAction(name, self)
-            action.triggered.connect(lambda checked, link=url: webbrowser.open(link))
-            links_menu.addAction(action)
-
-        menu_bar.addMenu(links_menu)
-
-        # Log menu actions
-        view_log_action = QAction("View Downloaded Log", self)
-        view_log_action.triggered.connect(self.view_link_log)
-        log_menu.addAction(view_log_action)
-        menu_bar.addMenu(log_menu)
-
-    def setup_ui(self):
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)  # Attach central widget to QMainWindow
-
-        layout = QVBoxLayout()
-
-        # UI setup
-        search_layout = QHBoxLayout()
-        self.search_type_combo = QComboBox()
-        self.search_type_combo.addItems(["Search by keyword", "Search by subreddit name"])
-        self.keyword_input = QLineEdit()
-        self.search_button = QPushButton("Search")
+    def connect_signals(self):
         self.search_button.clicked.connect(self.search_subreddits)
-        search_layout.addWidget(self.search_type_combo)
-        search_layout.addWidget(self.keyword_input)
-        search_layout.addWidget(self.search_button)
-
-        # Website detection
-        self.detected_type_label = QLabel("Detected Type: None")
-        layout.addWidget(self.detected_type_label)
-
-
-        self.subreddit_list = QListWidget()
-
-        # Number of images GUI
-        self.count_container = QWidget()
-        count_layout = QHBoxLayout()
-        self.count_container.setLayout(count_layout)
-
-        self.count_label = QLabel("Number of Images:")
-        self.count_input = QComboBox()
-        self.count_input.addItems(["5", "10", "20", "50", "100", "200", "All"])
-        count_layout.addWidget(self.count_label)
-        count_layout.addWidget(self.count_input)
-
-        layout.addWidget(self.count_container)
-        self.count_container.hide()
-
-        # Filtering GUI
-        self.filter_container = QWidget()
-        filter_layout = QHBoxLayout()
-        self.filter_container.setLayout(filter_layout)
-
-        self.sfw_checkbox = QCheckBox("SFW")
-        self.sfw_checkbox.setChecked(True)
-        self.nsfw_checkbox = QCheckBox("NSFW")
-        self.nsfw_checkbox.setChecked(True)
-        filter_layout.addWidget(QLabel("Filter:"))
-        filter_layout.addWidget(self.sfw_checkbox)
-        filter_layout.addWidget(self.nsfw_checkbox)
-
-        layout.addWidget(self.filter_container)
-        self.filter_container.hide()  # Hide the filter container initially
-
-        # Download button GUI
-        self.download_button = QPushButton("Download Images")
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setValue(0)
-        layout.addWidget(self.progress_bar)
         self.download_button.clicked.connect(self.download_images)
-
-        # Mangement GUI
-        manage_layout = QHBoxLayout()
-        self.clear_cache_button = QPushButton("Clear All Caches")
         self.clear_cache_button.clicked.connect(self.clear_all_caches)
-        self.clear_selected_cache_button = QPushButton("Clear Selected Cache")
         self.clear_selected_cache_button.clicked.connect(self.clear_selected_cache)
-        self.clear_downloads_button = QPushButton("Clear Downloads")
         self.clear_downloads_button.clicked.connect(self.clear_master_folder)
-        self.copy_downloads_button = QPushButton("Backup Master Folder")
         self.copy_downloads_button.clicked.connect(self.copy_master_folder)
-        self.change_location_button = QPushButton("Change Download Location")
         self.change_location_button.clicked.connect(self.change_master_folder)
-        manage_layout.addWidget(self.clear_cache_button)
-        manage_layout.addWidget(self.clear_selected_cache_button)
-        manage_layout.addWidget(self.clear_downloads_button)
-        manage_layout.addWidget(self.copy_downloads_button)
-        manage_layout.addWidget(self.change_location_button)
 
-
-        self.log_output = QTextEdit()
-        self.log_output.setReadOnly(True)
-
-        layout.addLayout(search_layout)
-        layout.addWidget(self.subreddit_list)
-        layout.addWidget(self.download_button)
-        layout.addLayout(manage_layout)
-        layout.addWidget(QLabel("Log Output:"))
-        layout.addWidget(self.log_output)
-
-        central_widget.setLayout(layout)  # Set layout on central widget
-    
     def change_master_folder(self):
         target_dir = QFileDialog.getExistingDirectory(self, "Select New Master Folder Location")
         if target_dir:

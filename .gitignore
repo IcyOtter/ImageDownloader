@@ -7,3 +7,4 @@ downloaded_links.log
 __pycache__/download_threads.cpython-313.pyc
 .gitignore
 __pycache__/utils.cpython-313.pyc
+__pycache__/gui_setup.cpython-313.pyc
