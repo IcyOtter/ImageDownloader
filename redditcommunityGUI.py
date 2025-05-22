@@ -2,13 +2,13 @@ import sys, os, re, requests, praw, shutil, asyncio, aiohttp, aiofiles, webbrows
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 from pathlib import Path
-from tqdm.asyncio import tqdm_asyncio, tqdm
+from tqdm.asyncio import tqdm
 from dotenv import load_dotenv
 from PyQt5.QtCore import QTimer, QThread, pyqtSignal
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QVBoxLayout,
-    QHBoxLayout, QLineEdit, QTextEdit, QSpinBox, QMessageBox, QCheckBox, QListWidget, QComboBox, QFileDialog,
-    QMenuBar, QMenu, QAction, QMainWindow, QProgressBar
+    QHBoxLayout, QLineEdit, QTextEdit, QMessageBox, QCheckBox, QListWidget, QComboBox, QFileDialog, 
+    QMenu, QAction, QMainWindow, QProgressBar
 )
 
 # Constants for Erome
@@ -500,121 +500,6 @@ class RedditDownloaderGUI(QMainWindow):
         self.thread.log_message.connect(self.log)
         self.thread.start()
 
-
-    def download_images_blocking(self, text):
-        try:
-            subreddit_name = text.split()[1].replace("r/", "")
-        except IndexError:
-            self.log("Could not determine subreddit name from selection.")
-            return
-
-        selected_limit = self.count_input.currentText()
-        limit = None if selected_limit == "All" else int(selected_limit)
-        allow_sfw = self.sfw_checkbox.isChecked()
-        allow_nsfw = self.nsfw_checkbox.isChecked()
-
-        try:
-            subreddit = reddit.subreddit(subreddit_name)
-            self._log_threadsafe(f"Downloading up to {limit if limit else 'All'} images from r/{subreddit.display_name}...")
-
-            subreddit_is_nsfw = subreddit.over18
-            if (subreddit_is_nsfw and not allow_nsfw) or (not subreddit_is_nsfw and not allow_sfw):
-                self._log_threadsafe("Subreddit does not match selected filter (SFW/NSFW). Skipping download.")
-                return
-
-            cache_folder = "cache"
-            os.makedirs(self.master_folder, exist_ok=True)
-            os.makedirs(cache_folder, exist_ok=True)
-
-            safe_name = re.sub(r'[^\w\-]', '_', subreddit_name.lower())
-            subfolder_name = f"r_{safe_name}"
-            download_folder = os.path.join(self.master_folder, subfolder_name)
-            os.makedirs(download_folder, exist_ok=True)
-
-            cache_file = os.path.join(cache_folder, f"{subfolder_name}.txt")
-            if os.path.exists(cache_file):
-                with open(cache_file, "r") as f:
-                    cached_urls = set(line.strip() for line in f if line.strip())
-            else:
-                cached_urls = set()
-
-            posts = list(subreddit.hot(limit=1000))
-            count = 0
-            new_urls = []
-            total_target = len(posts) if not limit else limit
-
-            self._update_progress_safe(0, total_target)
-
-            for i, post in enumerate(posts):
-                url = post.url.strip()
-                if url.lower().endswith((".jpg", ".jpeg", ".png", ".gif")) and url not in cached_urls:
-                    try:
-                        image_data = requests.get(url).content
-                        extension = os.path.splitext(url)[1]
-                        filename = os.path.join(download_folder, f"{subfolder_name}_{count}_{post.id}{extension}")
-                        with open(filename, "wb") as f:
-                            f.write(image_data)
-                        self._log_threadsafe(f"Saved: {filename}")
-                        count += 1
-                        new_urls.append(url)
-                        self._update_progress_safe(count, total_target)
-                        if limit and count >= limit:
-                            break
-                    except Exception as e:
-                        self._log_threadsafe(f"Failed to download {url}: {e}")
-
-            if new_urls:
-                with open(cache_file, "a") as f:
-                    for url in new_urls:
-                        f.write(url + "\n")
-
-            if count == 0:
-                self._log_threadsafe("No new images found (all duplicates).")
-            else:
-                self._log_threadsafe(f"{count} new images downloaded to '{os.path.abspath(download_folder)}'")
-
-        except Exception as e:
-            self._log_threadsafe(f"Error: {e}")
-
-
-    async def download_4chan_thread(self, url):
-        try:
-            board = re.search(r"boards\.4chan\.org/([^/]+)/thread/", url)
-            thread_id = re.search(r"thread/(\d+)", url)
-            if not board or not thread_id:
-                self.log("Invalid 4chan thread URL format.")
-                return
-            board, thread_id = board.group(1), thread_id.group(1)
-            api_url = f"https://a.4cdn.org/{board}/thread/{thread_id}.json"
-            media_url_base = f"https://i.4cdn.org/{board}/"
-            save_path = Path(self.master_folder) / f"4chan_{board}_{thread_id}"
-            save_path.mkdir(parents=True, exist_ok=True)
-
-            async with aiohttp.ClientSession() as session:
-                async with session.get(api_url) as resp:
-                    if resp.status != 200:
-                        self.log("Failed to fetch thread data.")
-                        return
-                    data = await resp.json()
-                    images = [post for post in data.get("posts", []) if "tim" in post and "ext" in post]
-
-                    for i, post in enumerate(images):
-                        file_url = f"{media_url_base}{post['tim']}{post['ext']}"
-                        file_path = save_path / f"{post['tim']}{post['ext']}"
-                        async with session.get(file_url) as f:
-                            if f.status == 200:
-                                with open(file_path, "wb") as out:
-                                    out.write(await f.read())
-                                self.log(f"Saved: {file_path}")
-                                self.log_downloaded_link("4chan", file_url)
-                            else:
-                                self.log(f"Failed to download: {file_url}")
-
-            self.log(f"Downloaded {len(images)} images to {save_path}")
-
-        except Exception as e:
-            self.log(f"4chan download error: {e}")
-
     def search_subreddits(self):
         keyword = self.keyword_input.text().strip().lower()
         self.detected_type_label.setText("Detected Type: None")
@@ -733,9 +618,6 @@ class RedditDownloaderGUI(QMainWindow):
                 images = [i["data-src"] for i in soup.find_all("img", class_="img-back")] if not skip_images else []
             return title, list(set(videos + images))
         
-    def _log_threadsafe(self, message):
-        QTimer.singleShot(0, lambda: self.log(message))
-
     def update_progress(self, current, total):
         if total == 0:
             self.progress_bar.setValue(0)
