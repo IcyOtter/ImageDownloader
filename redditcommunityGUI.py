@@ -2,9 +2,9 @@ import sys, os, re, requests, praw, shutil, asyncio, aiohttp, aiofiles, webbrows
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 from pathlib import Path
-from tqdm.asyncio import tqdm
+from tqdm.asyncio import tqdm, tqdm_asyncio
 from dotenv import load_dotenv
-from PyQt5.QtCore import QTimer, QThread, pyqtSignal
+from PyQt5.QtCore import QThread, pyqtSignal
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QVBoxLayout,
     QHBoxLayout, QLineEdit, QTextEdit, QMessageBox, QCheckBox, QListWidget, QComboBox, QFileDialog, 
