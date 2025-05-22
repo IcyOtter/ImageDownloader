@@ -8,18 +8,10 @@ from PyQt5.QtWidgets import (
 from download_threads import Download4chanThread, DownloadEromeThread, DownloaderThread
 from utils import collect_album_data, download_album_files
 from gui_setup import setup_gui, setup_menu
-
-# Load environment variables
-load_dotenv()
+from config import get_reddit_client
 
 # Initialize Reddit client
-reddit = praw.Reddit(
-    client_id=os.getenv("REDDIT_CLIENT_ID"),
-    client_secret=os.getenv("REDDIT_CLIENT_SECRET"),
-    user_agent=os.getenv("REDDIT_USER_AGENT"),
-    username=os.getenv("REDDIT_USERNAME"),
-    password=os.getenv("REDDIT_PASSWORD")
-)
+reddit = get_reddit_client()
 
 class RedditDownloaderGUI(QMainWindow):
     def __init__(self):
