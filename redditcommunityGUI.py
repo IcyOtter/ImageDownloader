@@ -36,6 +36,7 @@ class RedditDownloaderGUI(QMainWindow):
         self.master_folder = "downloader"
         self.setup_menu()
         self.setup_ui()
+        self.link_log_file = "downloaded_links.log"
 
     def setup_menu(self):
         menu_bar = self.menuBar()
@@ -113,6 +114,7 @@ class RedditDownloaderGUI(QMainWindow):
         self.download_button = QPushButton("Download Images")
         self.download_button.clicked.connect(self.download_images)
 
+        # Mangement GUI
         manage_layout = QHBoxLayout()
         self.clear_cache_button = QPushButton("Clear All Caches")
         self.clear_cache_button.clicked.connect(self.clear_all_caches)
@@ -124,18 +126,20 @@ class RedditDownloaderGUI(QMainWindow):
         self.copy_downloads_button.clicked.connect(self.copy_master_folder)
         self.change_location_button = QPushButton("Change Download Location")
         self.change_location_button.clicked.connect(self.change_master_folder)
+        self.view_log_button = QPushButton("View Downloaded Links")
+        self.view_log_button.clicked.connect(self.view_link_log)
         manage_layout.addWidget(self.clear_cache_button)
         manage_layout.addWidget(self.clear_selected_cache_button)
         manage_layout.addWidget(self.clear_downloads_button)
         manage_layout.addWidget(self.copy_downloads_button)
         manage_layout.addWidget(self.change_location_button)
+        manage_layout.addWidget(self.view_log_button)
 
         self.log_output = QTextEdit()
         self.log_output.setReadOnly(True)
 
         layout.addLayout(search_layout)
         layout.addWidget(self.subreddit_list)
-        layout.addLayout(count_layout)
         layout.addWidget(self.download_button)
         layout.addLayout(manage_layout)
         layout.addWidget(QLabel("Log Output:"))
@@ -150,6 +154,32 @@ class RedditDownloaderGUI(QMainWindow):
             self.log(f"Master folder location changed to: {self.master_folder}")
         else:
             self.log("Master folder location not changed.")
+    # --- Logging ---
+    def log_downloaded_link(self, source: str, url: str):
+        try:
+            with open(self.link_log_file, "a") as f:
+                f.write(f"[{source.upper()}] {url}\n")
+        except Exception as e:
+            self.log(f"Failed to log link: {e}")
+
+    def view_link_log(self):
+        try:
+            if not os.path.exists(self.link_log_file):
+                QMessageBox.information(self, "Link Log", "No log file found yet.")
+                return
+
+            with open(self.link_log_file, "r") as f:
+                content = f.read()
+
+            log_window = QMessageBox(self)
+            log_window.setWindowTitle("Downloaded Links Log")
+            log_window.setText("Here are your downloaded links:")
+            log_window.setDetailedText(content)
+            log_window.setStandardButtons(QMessageBox.Ok)
+            log_window.exec_()
+        except Exception as e:
+            self.log(f"❌ Failed to open link log: {e}")
+
 
     def log(self, message):
         self.log_output.append(message)
@@ -230,6 +260,7 @@ class RedditDownloaderGUI(QMainWindow):
     async def download_erome_gallery(self, url):
         try:
             await self.dump(url=url, max_connections=5, skip_videos=False, skip_images=False)
+            self.log_downloaded_link("EROME", url)
             self.log("Erome gallery downloaded.")
         except Exception as e:
             self.log(f"Erome download error: {e}")
@@ -349,6 +380,7 @@ class RedditDownloaderGUI(QMainWindow):
                                 with open(file_path, "wb") as out:
                                     out.write(await f.read())
                                 self.log(f"Saved: {file_path}")
+                                self.log_downloaded_link("4chan", file_url)
                             else:
                                 self.log(f"Failed to download: {file_url}")
 
