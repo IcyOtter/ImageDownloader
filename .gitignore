@@ -3,3 +3,7 @@ WiFiGuardian.py
 known_nsfw.txt
 test.py
 Notes
+downloaded_links.log
+__pycache__/download_threads.cpython-313.pyc
+.gitignore
+__pycache__/utils.cpython-313.pyc

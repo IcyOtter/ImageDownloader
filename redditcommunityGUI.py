@@ -1,21 +1,12 @@
-import sys, os, re, requests, praw, shutil, asyncio, aiohttp, aiofiles, webbrowser
-from bs4 import BeautifulSoup
-from urllib.parse import urlparse
-from pathlib import Path
-from tqdm.asyncio import tqdm, tqdm_asyncio
+import sys, os, re, praw, shutil, webbrowser
 from dotenv import load_dotenv
-from PyQt5.QtCore import QThread, pyqtSignal
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QVBoxLayout,
     QHBoxLayout, QLineEdit, QTextEdit, QMessageBox, QCheckBox, QListWidget, QComboBox, QFileDialog, 
     QMenu, QAction, QMainWindow, QProgressBar
 )
-
-# Constants for Erome
-USER_AGENT = "Mozilla/5.0"
-EROME_HOST = "www.erome.com"
-CHUNK_SIZE = 1024
-
+from download_threads import Download4chanThread, DownloadEromeThread, DownloaderThread
+from utils import collect_album_data, download_album_files
 # Load environment variables
 load_dotenv()
 
@@ -27,165 +18,6 @@ reddit = praw.Reddit(
     username=os.getenv("REDDIT_USERNAME"),
     password=os.getenv("REDDIT_PASSWORD")
 )
-
-class DownloaderThread(QThread):
-    progress_updated = pyqtSignal(int, int)  # current, total
-    log_message = pyqtSignal(str)
-
-    def __init__(self, subreddit_name, limit, allow_sfw, allow_nsfw, master_folder, cache_folder):
-        super().__init__()
-        self.subreddit_name = subreddit_name
-        self.limit = limit
-        self.allow_sfw = allow_sfw
-        self.allow_nsfw = allow_nsfw
-        self.master_folder = master_folder
-        self.cache_folder = cache_folder
-
-    def run(self):
-        try:
-            subreddit = reddit.subreddit(self.subreddit_name)
-            self.log(f"Downloading up to {self.limit if self.limit else 'All'} images from r/{subreddit.display_name}...")
-
-            if (subreddit.over18 and not self.allow_nsfw) or (not subreddit.over18 and not self.allow_sfw):
-                self.log("Subreddit does not match selected filter (SFW/NSFW). Skipping download.")
-                return
-
-            os.makedirs(self.master_folder, exist_ok=True)
-            os.makedirs(self.cache_folder, exist_ok=True)
-
-            safe_name = re.sub(r'[^\w\-]', '_', self.subreddit_name.lower())
-            subfolder_name = f"r_{safe_name}"
-            download_folder = os.path.join(self.master_folder, subfolder_name)
-            os.makedirs(download_folder, exist_ok=True)
-
-            cache_file = os.path.join(self.cache_folder, f"{subfolder_name}.txt")
-            if os.path.exists(cache_file):
-                with open(cache_file, "r") as f:
-                    cached_urls = set(line.strip() for line in f if line.strip())
-            else:
-                cached_urls = set()
-
-            posts = list(subreddit.hot(limit=1000))
-            count = 0
-            new_urls = []
-            total_target = len(posts) if not self.limit else self.limit
-            self.progress_updated.emit(0, total_target)
-
-            for post in posts:
-                url = post.url.strip()
-                if url.lower().endswith((".jpg", ".jpeg", ".png", ".gif")) and url not in cached_urls:
-                    try:
-                        image_data = requests.get(url).content
-                        extension = os.path.splitext(url)[1]
-                        filename = os.path.join(download_folder, f"{subfolder_name}_{count}_{post.id}{extension}")
-                        with open(filename, "wb") as f:
-                            f.write(image_data)
-                        self.log(f"Saved: {filename}")
-                        count += 1
-                        new_urls.append(url)
-                        self.progress_updated.emit(count, total_target)
-                        if self.limit and count >= self.limit:
-                            break
-                    except Exception as e:
-                        self.log(f"Failed to download {url}: {e}")
-
-            if new_urls:
-                with open(cache_file, "a") as f:
-                    for url in new_urls:
-                        f.write(url + "\n")
-
-            if count == 0:
-                self.log("No new images found (all duplicates).")
-            else:
-                self.log(f"{count} new images downloaded to '{os.path.abspath(download_folder)}'")
-
-        except Exception as e:
-            self.log(f"Error: {e}")
-
-    def log(self, message):
-        self.log_message.emit(message)
-
-class Download4chanThread(QThread):
-    progress_updated = pyqtSignal(int, int)
-    log_message = pyqtSignal(str)
-
-    def __init__(self, url, master_folder, log_link_callback=None):
-        super().__init__()
-        self.url = url
-        self.master_folder = master_folder
-        self.log_link_callback = log_link_callback
-
-    def run(self):
-        asyncio.run(self.download_4chan_thread())
-
-    async def download_4chan_thread(self):
-        try:
-            board = re.search(r"boards\.4chan\.org/([^/]+)/thread/", self.url)
-            thread_id = re.search(r"thread/(\d+)", self.url)
-            if not board or not thread_id:
-                self.log_message.emit("Invalid 4chan thread URL format.")
-                return
-
-            board, thread_id = board.group(1), thread_id.group(1)
-            api_url = f"https://a.4cdn.org/{board}/thread/{thread_id}.json"
-            media_url_base = f"https://i.4cdn.org/{board}/"
-            save_path = Path(self.master_folder) / f"4chan_{board}_{thread_id}"
-            save_path.mkdir(parents=True, exist_ok=True)
-
-            async with aiohttp.ClientSession() as session:
-                async with session.get(api_url) as resp:
-                    if resp.status != 200:
-                        self.log_message.emit("Failed to fetch thread data.")
-                        return
-                    data = await resp.json()
-                    images = [post for post in data.get("posts", []) if "tim" in post and "ext" in post]
-
-                    total = len(images)
-                    for i, post in enumerate(images):
-                        file_url = f"{media_url_base}{post['tim']}{post['ext']}"
-                        file_path = save_path / f"{post['tim']}{post['ext']}"
-                        async with session.get(file_url) as f:
-                            if f.status == 200:
-                                with open(file_path, "wb") as out:
-                                    out.write(await f.read())
-                                self.log_message.emit(f"Saved: {file_path}")
-                                if self.log_link_callback:
-                                    self.log_link_callback("4chan", file_url)
-                            else:
-                                self.log_message.emit(f"Failed to download: {file_url}")
-
-                        self.progress_updated.emit(i + 1, total)
-
-            self.log_message.emit(f"Downloaded {total} images to {save_path}")
-
-        except Exception as e:
-            self.log_message.emit(f"4chan download error: {e}")
-
-class DownloadEromeThread(QThread):
-    progress_updated = pyqtSignal(int, int)
-    log_message = pyqtSignal(str)
-
-    def __init__(self, url, master_folder, collect_album_data_fn, download_fn):
-        super().__init__()
-        self.url = url
-        self.master_folder = master_folder
-        self.collect_album_data_fn = collect_album_data_fn
-        self.download_fn = download_fn
-
-    def run(self):
-        try:
-            title, urls = asyncio.run(self.collect_album_data_fn(self.url, skip_videos=False, skip_images=False))
-            download_path = Path(self.master_folder) / title
-            download_path.mkdir(parents=True, exist_ok=True)
-
-            total = len(urls)
-            for i, url in enumerate(urls):
-                asyncio.run(self.download_fn(self.url, [url], max_connections=1, download_path=download_path))
-                self.progress_updated.emit(i + 1, total)
-
-            self.log_message.emit(f"Erome gallery downloaded to {download_path}")
-        except Exception as e:
-            self.log_message.emit(f"Erome download error: {e}")
 
 class RedditDownloaderGUI(QMainWindow):
     def __init__(self):
@@ -462,8 +294,8 @@ class RedditDownloaderGUI(QMainWindow):
             self.download_thread = DownloadEromeThread(
                 text,
                 self.master_folder,
-                self._collect_album_data,
-                self._download
+                collect_album_data,
+                download_album_files
             )
             self.download_thread.progress_updated.connect(self.update_progress)
             self.download_thread.log_message.connect(self.log)
@@ -495,7 +327,7 @@ class RedditDownloaderGUI(QMainWindow):
         allow_nsfw = self.nsfw_checkbox.isChecked()
 
         self.progress_bar.setValue(0)
-        self.thread = DownloaderThread(subreddit_name, limit, allow_sfw, allow_nsfw, self.master_folder, "cache")
+        self.thread = DownloaderThread(subreddit_name, limit, allow_sfw, allow_nsfw, self.master_folder, "cache", reddit)
         self.thread.progress_updated.connect(self.update_progress)
         self.thread.log_message.connect(self.log)
         self.thread.start()
@@ -561,63 +393,7 @@ class RedditDownloaderGUI(QMainWindow):
         except Exception as e:
             self.log(f"Error searching subreddits: {e}")
 
-# --- Utility Functions ---
-    def _clean_album_title(self, title: str, default_title="temp") -> str:
-        illegal_chars = r'[\\/:*?"<>|]'
-        title = re.sub(illegal_chars, "_", title).strip(". ")
-        return title if title else default_title
-
-
-    def _get_final_download_path(self, album_title: str) -> Path:
-        final_path = Path(self.master_folder) / album_title
-        final_path.mkdir(parents=True, exist_ok=True)
-        return final_path
-
-    async def dump(self, url: str, max_connections: int, skip_videos: bool, skip_images: bool):
-        if urlparse(url).hostname != EROME_HOST:
-            raise ValueError(f"Host must be {EROME_HOST}")
-        title, urls = await self._collect_album_data(url, skip_videos, skip_images)
-        download_path = self._get_final_download_path(title)
-        await self._download(url, urls, max_connections, download_path)
-
-    async def _download(self, album: str, urls: list[str], max_connections: int, download_path: Path):
-        semaphore = asyncio.Semaphore(max_connections)
-        async with aiohttp.ClientSession(headers={"Referer": album, "User-Agent": USER_AGENT}, timeout=aiohttp.ClientTimeout(total=None)) as session:
-            tasks = [
-                self._download_file(session, url, semaphore, download_path)
-                for url in urls
-            ]
-            await tqdm_asyncio.gather(*tasks, colour="MAGENTA", desc="Album Progress", unit="file", leave=True)
-
-    async def _download_file(self, session: aiohttp.ClientSession, url: str, semaphore: asyncio.Semaphore, download_path: Path):
-        async with semaphore:
-            async with session.get(url) as r:
-                if r.ok:
-                    file_name = Path(urlparse(url).path).name
-                    file_path = download_path / file_name
-                    total_size = int(r.headers.get("content-length", 0))
-                    if file_path.exists() and abs(file_path.stat().st_size - total_size) <= 50:
-                        tqdm.write(f"[#] Skipping {url} [already downloaded]")
-                        return
-                    progress = tqdm(desc=f"[+] Downloading {url}", total=total_size, unit="B", unit_scale=True, unit_divisor=CHUNK_SIZE, colour="MAGENTA", leave=False)
-                    async with aiofiles.open(file_path, "wb") as f:
-                        async for chunk in r.content.iter_chunked(CHUNK_SIZE):
-                            written = await f.write(chunk)
-                            progress.update(written)
-                    progress.close()
-                else:
-                    tqdm.write(f"[ERROR] Failed to download {url}")
-
-    async def _collect_album_data(self, url: str, skip_videos: bool, skip_images: bool) -> tuple[str, list[str]]:
-        headers = {"User-Agent": USER_AGENT}
-        async with aiohttp.ClientSession(headers=headers) as session:
-            async with session.get(url) as response:
-                soup = BeautifulSoup(await response.text(), "html.parser")
-                title = self._clean_album_title(soup.find("meta", property="og:title")["content"])
-                videos = [v["src"] for v in soup.find_all("source")] if not skip_videos else []
-                images = [i["data-src"] for i in soup.find_all("img", class_="img-back")] if not skip_images else []
-            return title, list(set(videos + images))
-        
+# --- Utility Functions ---  
     def update_progress(self, current, total):
         if total == 0:
             self.progress_bar.setValue(0)
