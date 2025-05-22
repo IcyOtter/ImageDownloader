@@ -158,6 +158,32 @@ class Download4chanThread(QThread):
         except Exception as e:
             self.log_message.emit(f"4chan download error: {e}")
 
+class DownloadEromeThread(QThread):
+    progress_updated = pyqtSignal(int, int)
+    log_message = pyqtSignal(str)
+
+    def __init__(self, url, master_folder, collect_album_data_fn, download_fn):
+        super().__init__()
+        self.url = url
+        self.master_folder = master_folder
+        self.collect_album_data_fn = collect_album_data_fn
+        self.download_fn = download_fn
+
+    def run(self):
+        try:
+            title, urls = asyncio.run(self.collect_album_data_fn(self.url, skip_videos=False, skip_images=False))
+            download_path = Path(self.master_folder) / title
+            download_path.mkdir(parents=True, exist_ok=True)
+
+            total = len(urls)
+            for i, url in enumerate(urls):
+                asyncio.run(self.download_fn(self.url, [url], max_connections=1, download_path=download_path))
+                self.progress_updated.emit(i + 1, total)
+
+            self.log_message.emit(f"Erome gallery downloaded to {download_path}")
+        except Exception as e:
+            self.log_message.emit(f"Erome download error: {e}")
+
 class RedditDownloaderGUI(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -450,8 +476,20 @@ class RedditDownloaderGUI(QMainWindow):
         text = selected.text().strip()
 
         if "erome.com" in text:
-            asyncio.create_task(self.download_erome_gallery(text))
+            self.progress_bar.setValue(0)
+            self.progress_bar.setFormat("Progress: %p%")
+            self.download_thread = DownloadEromeThread(
+                text,
+                self.master_folder,
+                self._collect_album_data,
+                self._download
+            )
+            self.download_thread.progress_updated.connect(self.update_progress)
+            self.download_thread.log_message.connect(self.log)
+            self.download_thread.start()
+            self.log_downloaded_link("EROME", text)
             return
+
 
         if "boards.4chan.org" in text:
             self.progress_bar.setValue(0)
