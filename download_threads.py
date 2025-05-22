@@ -1,4 +1,5 @@
 import os
+from bs4 import BeautifulSoup
 import re
 import asyncio
 import aiohttp
@@ -7,9 +8,12 @@ from pathlib import Path
 from PyQt5.QtCore import QThread, pyqtSignal
 import requests
 from praw import Reddit
+import cloudscraper
 from utils import create_download_path, download_file, scrape_erome_album
 from utils import parse_4chan_thread_url, fetch_4chan_thread_data, get_4chan_media_url
+from utils import download_file_async, scrape_motherless_gallery, create_download_path
 
+# Reddit Downloader
 class DownloaderThread(QThread):
     progress_updated = pyqtSignal(int, int)
     log_message = pyqtSignal(str)
@@ -88,6 +92,7 @@ class DownloaderThread(QThread):
     def log(self, message):
         self.log_message.emit(message)
 
+# 4chan Downloader
 class Download4chanThread(QThread):
     progress_updated = pyqtSignal(int, int)
     log_message = pyqtSignal(str)
@@ -132,7 +137,8 @@ class Download4chanThread(QThread):
 
         except Exception as e:
             self.log_message.emit(f"4chan download error: {e}")
-            
+
+    # Erome downloader          
 class DownloadEromeThread(QThread):
     progress_updated = pyqtSignal(int, int)
     log_message = pyqtSignal(str)
@@ -164,3 +170,30 @@ class DownloadEromeThread(QThread):
 
         except Exception as e:
             self.log_message.emit(f"Erome download error: {e}")
+
+class DownloadMotherlessThread(QThread):
+    progress_updated = pyqtSignal(int, int)
+    log_message = pyqtSignal(str)
+
+    def __init__(self, url, master_folder):
+        super().__init__()
+        self.url = url
+        self.master_folder = master_folder
+
+    def run(self):
+        asyncio.run(self.download_motherless())
+
+    async def download_motherless(self):
+        try:
+            folder_name, urls = await scrape_motherless_gallery(self.url)
+            download_path = create_download_path(self.master_folder, folder_name)
+
+            total = len(urls)
+            async with aiohttp.ClientSession() as session:
+                for i, url in enumerate(urls):
+                    await download_file_async(session, url, download_path)
+                    self.progress_updated.emit(i + 1, total)
+
+            self.log_message.emit(f"Downloaded {total} images to {download_path}")
+        except Exception as e:
+            self.log_message.emit(f"Motherless download error: {e}")

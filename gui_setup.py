@@ -100,6 +100,7 @@ def setup_menu(main_window):
         "Reddit": "https://www.reddit.com",
         "Erome": "https://www.erome.com",
         "4chan": "https://boards.4chan.org",
+        "Motherless": "https://motherless.com",
     }
 
     for name, url in websites.items():

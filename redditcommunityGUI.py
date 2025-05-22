@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (
     QHBoxLayout, QLineEdit, QTextEdit, QMessageBox, QCheckBox, QListWidget, QComboBox, QFileDialog, 
     QMenu, QAction, QMainWindow, QProgressBar
 )
-from download_threads import Download4chanThread, DownloadEromeThread, DownloaderThread
+from download_threads import Download4chanThread, DownloadEromeThread, DownloaderThread, DownloadMotherlessThread
 from utils import collect_album_data, download_album_files
 from gui_setup import setup_gui, setup_menu
 from config import get_reddit_client
@@ -199,6 +199,19 @@ class RedditDownloaderGUI(QMainWindow):
 
             self.log_downloaded_link("4chan", text)
             return
+        
+        if "motherless.com" in text:
+            self.progress_bar.setValue(0)
+            self.progress_bar.setFormat("Progress: %p%")
+            self.download_thread = DownloadMotherlessThread(
+                text,
+                self.master_folder,
+            )
+            self.download_thread.progress_updated.connect(self.update_progress)
+            self.download_thread.log_message.connect(self.log)
+            self.download_thread.start()
+            self.log_downloaded_link("MOTHERLESS", text)
+            return
 
         try:
             subreddit_name = text.split()[1].replace("r/", "")
@@ -247,6 +260,14 @@ class RedditDownloaderGUI(QMainWindow):
             self.detected_type_label.setText("Detected Type: 4chan Thread")
             self.count_container.hide()
             self.log("4chan thread ready for download.")
+            return
+        
+        elif "motherless.com" in keyword:
+            self.subreddit_list.clear()
+            self.subreddit_list.addItem(keyword)
+            self.detected_type_label.setText("Detected Type: Motherless Thread")
+            self.count_container.hide()
+            self.log("Motherless thread ready for download.")
             return
 
 
