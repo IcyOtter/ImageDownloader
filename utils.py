@@ -127,34 +127,35 @@ def parse_4chan_thread_url(url: str) -> tuple[str, str]:
 def get_4chan_media_url(board: str, tim: int, ext: str) -> str:
     return f"https://i.4cdn.org/{board}/{tim}{ext}"
 
-async def scrape_motherless_gallery(url: str) -> tuple[str, list[str]]:
+async def scrape_motherless_gallery(url: str, skip_images=False) -> tuple[str, list[str]]:
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
-        await page.goto(url, wait_until="domcontentloaded")
+        await page.goto(url)
+        await page.wait_for_selector('a.media-link', timeout=10000)
 
-        # Get all media page links
-        await page.wait_for_selector("a.mediaspace-image-link", timeout=10000)
-        thumbs = await page.eval_on_selector_all(
-            "a.mediaspace-image-link",
-            "elements => elements.map(e => e.href)"
-        )
-
+        thumbs = await page.eval_on_selector_all('a.media-link', 'elements => elements.map(e => e.href)')
         image_urls = []
 
-        for media_url in thumbs:
-            await page.goto(media_url, wait_until="domcontentloaded")
-            await page.wait_for_selector("img#motherless-media-image", timeout=10000)
-            src = await page.get_attribute("img#motherless-media-image", "src")
-            if src:
-                image_urls.append(src)
+        for media_page in thumbs:
+            await page.goto(media_page)
+            try:
+                await page.wait_for_selector("#media-media", timeout=5000)
+                src = await page.get_attribute("#media-media", "src")
+                if src and not skip_images:
+                    image_urls.append(src)
+            except:
+                continue
 
         await browser.close()
 
-        gallery_id = re.search(r"/([A-Z0-9]{6,})", url)
-        title = f"motherless_{gallery_id.group(1)}" if gallery_id else "motherless_gallery"
+    if not image_urls:
+        return "motherless_gallery", []
 
-        return title, image_urls
+    gallery_id = re.search(r"/([A-Z0-9]{6,})", url)
+    folder_name = f"motherless_{gallery_id.group(1) if gallery_id else 'gallery'}"
+    return folder_name, image_urls
+
 async def download_file_async(session, url: str, download_path: Path):
     try:
         file_name = Path(urlparse(url).path).name

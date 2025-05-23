@@ -6,7 +6,6 @@ from PyQt5.QtWidgets import (
     QMenu, QAction, QMainWindow, QProgressBar
 )
 from download_threads import Download4chanThread, DownloadEromeThread, DownloaderThread, DownloadMotherlessThread
-from download_threads import scrape_motherless_gallery, download_file, create_download_path
 from utils import collect_album_data, download_album_files
 from gui_setup import setup_gui, setup_menu
 from config import get_reddit_client
@@ -207,12 +206,11 @@ class RedditDownloaderGUI(QMainWindow):
             self.download_thread = DownloadMotherlessThread(
                 text,
                 self.master_folder,
-                self.log_downloaded_link
             )
             self.download_thread.progress_updated.connect(self.update_progress)
             self.download_thread.log_message.connect(self.log)
             self.download_thread.start()
-            self.log_downloaded_link("motherless", text)
+            self.log_downloaded_link("MOTHERLESS", text)
             return
 
         try:

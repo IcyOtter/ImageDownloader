@@ -175,38 +175,25 @@ class DownloadMotherlessThread(QThread):
     progress_updated = pyqtSignal(int, int)
     log_message = pyqtSignal(str)
 
-    def __init__(self, url, master_folder, log_link_callback=None):
+    def __init__(self, url, master_folder):
         super().__init__()
         self.url = url
         self.master_folder = master_folder
-        self.log_link_callback = log_link_callback
 
     def run(self):
-        asyncio.run(self.download_gallery())
+        asyncio.run(self.download_motherless())
 
-    async def download_gallery(self):
+    async def download_motherless(self):
         try:
-            from utils import scrape_motherless_gallery  # Ensure import is here or at top of file
-            folder_name, image_urls = await scrape_motherless_gallery(self.url)
+            folder_name, urls = await scrape_motherless_gallery(self.url)
+            download_path = create_download_path(self.master_folder, folder_name)
 
-            if not image_urls:
-                self.log_message.emit("No images found in Motherless gallery.")
-                return
-
-            download_path = Path(self.master_folder) / folder_name
-            download_path.mkdir(parents=True, exist_ok=True)
-
-            total = len(image_urls)
-            semaphore = asyncio.Semaphore(2)
-
+            total = len(urls)
             async with aiohttp.ClientSession() as session:
-                for i, url in enumerate(image_urls):
-                    await download_file(session, url, semaphore, download_path)
+                for i, url in enumerate(urls):
+                    await download_file_async(session, url, download_path)
                     self.progress_updated.emit(i + 1, total)
 
             self.log_message.emit(f"Downloaded {total} images to {download_path}")
-            if self.log_link_callback:
-                self.log_link_callback("motherless", self.url)
-
         except Exception as e:
             self.log_message.emit(f"Motherless download error: {e}")
