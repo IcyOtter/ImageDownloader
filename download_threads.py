@@ -11,7 +11,7 @@ from praw import Reddit
 import cloudscraper
 from utils import create_download_path, download_file, scrape_erome_album
 from utils import parse_4chan_thread_url, fetch_4chan_thread_data, get_4chan_media_url
-from utils import download_file_async, scrape_motherless_gallery, create_download_path
+from utils import scrape_motherless_gallery, create_download_path
 
 # Reddit Downloader
 class DownloaderThread(QThread):
@@ -175,25 +175,34 @@ class DownloadMotherlessThread(QThread):
     progress_updated = pyqtSignal(int, int)
     log_message = pyqtSignal(str)
 
-    def __init__(self, url, master_folder):
+    def __init__(self, url, master_folder, scrape_fn, log_link_callback=None):
         super().__init__()
         self.url = url
         self.master_folder = master_folder
+        self.scrape_fn = scrape_fn
+        self.log_link_callback = log_link_callback
 
     def run(self):
-        asyncio.run(self.download_motherless())
+        asyncio.run(self.download_gallery())
 
     async def download_motherless(self):
         try:
-            folder_name, urls = await scrape_motherless_gallery(self.url)
-            download_path = create_download_path(self.master_folder, folder_name)
+            title, media_urls = await self.scrape_fn(self.url)
+            if not media_urls:
+                self.log_message.emit("No media found in Motherless page.")
+                return
 
-            total = len(urls)
+            download_path = create_download_path(self.master_folder, title)
+            semaphore = asyncio.Semaphore(3)  # control concurrency
+
             async with aiohttp.ClientSession() as session:
-                for i, url in enumerate(urls):
-                    await download_file_async(session, url, download_path)
-                    self.progress_updated.emit(i + 1, total)
+                for i, url in enumerate(media_urls):
+                    await download_file(session, url, semaphore, download_path)
+                    self.progress_updated.emit(i + 1, len(media_urls))
 
-            self.log_message.emit(f"Downloaded {total} images to {download_path}")
+            self.log_message.emit(f"Downloaded {len(media_urls)} items to {download_path}")
+            if self.log_link_callback:
+                self.log_link_callback("motherless", self.url)
+
         except Exception as e:
             self.log_message.emit(f"Motherless download error: {e}")
